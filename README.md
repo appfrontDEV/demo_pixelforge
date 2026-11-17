@@ -4,9 +4,11 @@
 
 ## Stack
 
-- **Laravel 13** (PHP 8.3)
+- **Laravel 13** (PHP 8.3) with the official Vue starter kit
+- Inertia 3 + Vue 3 + TypeScript + Tailwind 4, Wayfinder for typed routes
+- Laravel Fortify for authentication
 - SQLite (default local database)
-- Vite for frontend assets
+- Vite for frontend assets (Node.js ≥ 20.19)
 - License: AGPL-3.0
 
 ## Getting started
@@ -23,7 +25,17 @@ npm install && npm run build
 composer run dev   # or: php artisan serve
 ```
 
+Or run `composer run setup` to do the install, key, migrate and build steps in one go.
+
 Run tests with `php artisan test`.
+
+## Features
+
+### Accounts
+
+- Sign up with name, email and password, then log in and out.
+- Reset a forgotten password by email link.
+- Edit your profile, change your password, choose a light/dark/system appearance, and delete your account (confirming with your password).
 
 ## Build log
 
@@ -38,3 +50,40 @@ Each entry summarizes one request and what was done about it.
 - Kept the repo's existing AGPL-3.0 `LICENSE` and set `composer.json` to match (`AGPL-3.0-or-later`).
 - Merged Laravel's `.gitignore` entries into the existing one.
 - Created this README with a running build log.
+
+### 002 · 2026-11-17 · Specification issue
+
+**Request:** Create a first issue with the specifications from the [PromptEdit assessment](https://pixelforge.promptedit.dev/assessment), to review the plan before writing the specs into `docs/`.
+
+**Done:**
+- Read the assessment brief and the full [Pixelforge API docs](https://pixelforge.promptedit.dev/docs).
+- Opened [issue #1](https://github.com/appfrontDEV/demo_pixelforge/issues/1). It covers the required scope, stretch goals, a proposed money model, the robustness plan, a draft data model, setup tasks and open decisions.
+- Next: review the plan, then write the final spec to `docs/`.
+
+### 003 · 2026-11-17 · Split the spec into sub-issues
+
+**Request:** Split issue #1 into sub-issues, one small PR each.
+
+**Done:**
+- Created 16 sub-issues linked to [#1](https://github.com/appfrontDEV/demo_pixelforge/issues/1), in dependency order: spec doc (#2), stack (#3), money (#4), Pixelforge client (#5), estimator (#6), generations model (#7), create flow (#8), resilience (#9), prompt form (#10), history (#11), webhook intake (#12), webhook processing (#13), reconcile job (#14), deployment (#15), and the stretch goals admin report (#16) and balances (#17).
+- Each issue lists its dependencies, acceptance criteria, the tests to write, and the branch and commit conventions. Issues that need an open decision from #1 §7 are marked as blocked.
+
+### 004 · 2026-11-17 · Apply the open decisions
+
+**Request:** Apply the answers to the open decisions, given in a comment on #1.
+
+**Done:**
+- Money: the provider cost is kept in nano-USD so it matches Pixelforge exactly. Customers are charged in integer cents, always rounded up, with at least 1¢ when the cost is above zero.
+- Estimate: shown from a baseline of real costs per size × quality, starting at $0–$1000.
+- Hosting is Laravel Cloud. Images are copied to S3 (new #19). Access uses roles and permissions with a superadmin (new #18). Approved packages: `spatie/laravel-permission` and `league/flysystem-aws-s3-v3`.
+- Updated sub-issues #2–#4, #6, #8, #11, #13 and #15–#17 to match.
+
+### 005 · 2026-11-17 · Stack setup (#3)
+
+**Request:** Start with sub-issue #3: add Inertia + Vue + TypeScript + Tailwind with authentication.
+
+**Done:**
+- Brought in the official Laravel Vue starter kit (Laravel 13, Inertia 3, Vue 3, Tailwind 4, Fortify, Wayfinder). Tests stay on PHPUnit 12.
+- Kept registration and password confirmation. Left out email verification, two-factor and passkeys, so testers can sign up without mail.
+- Kept the AGPL license, README and agent instruction files. Merged the kit's `.gitignore` entries.
+- Clean-up: stopped tracking `database/database.sqlite` and a compiled view, and restored Laravel's `storage/**/.gitignore` files.

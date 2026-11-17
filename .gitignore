@@ -46,3 +46,16 @@ auth.json
 /vendor
 _ide_helper.php
 Thumbs.db
+
+# Starter kit (Inertia/Vue/Wayfinder)
+/bootstrap/ssr
+/resources/js/actions
+/resources/js/routes
+/resources/js/wayfinder
+/.fleet
+/.mcp.json
+
+# SQLite database file and companions (storage policy)
+/database/*.sqlite
+/database/*.sqlite-wal
+/database/*.sqlite-shm
