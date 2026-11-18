@@ -98,3 +98,14 @@ Each entry summarizes one request and what was done about it.
 - `ProviderCostCalculator`: Σ(tokens × rate per 1M) from a generation's own `usage` and `rates`. It ignores `total_tokens` and refuses to bill anything it can't compute exactly.
 - `CustomerPrice`: cost × 125%, always rounded up to whole cents in one integer step. The docs' worked maximum, $0.373875, costs the customer 47¢; a failed generation costs 0¢.
 - Eloquent casts `AsNanoUsd` and `AsCents` for BIGINT columns. They reject floats on write, accept BIGINT-as-string on read, and serialize nano-USD as the 9-decimal string.
+
+### 007 · 2026-11-18 · Generations model and state machine (#7)
+
+**Request:** Start sub-issue #7: the generations data model and its forward-only status.
+
+**Done:**
+- `generations` table, `Generation` model and factory. Ids are UUIDs, and the Pixelforge `gen_…` id is unique. Columns cover the prompt, size and quality, up to 4 reference images, the estimate in cents, `usage`/`rates`, the exact provider cost in nano-USD, the customer price in cents, the image URL and its expiry, the error code and message, and the submitted/started/completed timestamps.
+- Deleting an account keeps its generations (`user_id` is set to null), so provider costs still reconcile with `GET /v1/usage`.
+- `GenerationStatus` enum: `pending → queued → processing → succeeded | failed`. Steps can be skipped, since a webhook can arrive before the create response. A status never moves back, and `succeeded`/`failed` are final.
+- `transitionTo()` is the only way to change status (`status` isn't mass-assignable). It is a conditional `UPDATE`, so a stale copy or a late webhook can't move a finished generation back. Extra fields, such as cost and price, are written in the same statement. Repeating a transition is a no-op.
+- Tests cover all 25 transitions, idempotent repeats, the stale-copy race, and writing cost and price with the move.
