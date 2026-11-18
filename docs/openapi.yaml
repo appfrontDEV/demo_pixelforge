@@ -1,0 +1,156 @@
+openapi: 3.1.0
+info:
+  title: PixelForge API
+  version: v1
+  description: |
+    JSON API for PixelForge. Every endpoint lives under `/api/v1` and, apart from
+    `POST /api/v1/tokens`, needs a personal API token sent as `Authorization: Bearer <token>`.
+
+    Tokens can be created on the **Settings → API tokens** page, with `POST /api/v1/tokens`,
+    or with `php artisan api-tokens:create {email} {name}`.
+
+    ## Response structure
+    - Success: `{"data": ...}` (an object or a list). `204` responses have no body.
+    - Validation error (`422`): `{"message": "...", "errors": {"<field>": ["..."]}}`.
+    - Any other error (`401`, `404`, `429`, `5xx`): `{"message": "..."}`.
+
+    ## RBAC
+    No roles are enforced yet (they arrive with #18). A user can only see and revoke their own tokens.
+servers:
+  - url: /api/v1
+security:
+  - bearerToken: []
+tags:
+  - name: API tokens
+    description: Personal tokens for the API. Console parity via `api-tokens:create|list|revoke`.
+paths:
+  /tokens:
+    post:
+      tags: [API tokens]
+      operationId: issueApiToken
+      summary: Exchange account credentials for a new API token
+      description: |
+        Returns the plain-text token **once**; only a hash is stored. Wrong credentials and
+        unknown emails return the same `422` on `email`. Limited to 6 requests per minute.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, name]
+              properties:
+                email: { type: string, format: email, example: ada@example.com }
+                password: { type: string, format: password, example: password }
+                name: { type: string, maxLength: 255, example: CI script, description: A label for the token. }
+      responses:
+        '201':
+          description: Token created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/ApiToken'
+                      - type: object
+                        required: [token]
+                        properties:
+                          token:
+                            type: string
+                            description: The plain-text token. Shown only in this response.
+                            example: 1|W1VptDsbh3qRDGv30F1mQRsbHtKypa4F0xC0XY6d26d06788
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+    get:
+      tags: [API tokens]
+      operationId: listApiTokens
+      summary: List the caller's API tokens, newest first
+      description: Metadata only; secrets are never returned.
+      responses:
+        '200':
+          description: The caller's tokens.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ApiToken' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /tokens/{token}:
+    delete:
+      tags: [API tokens]
+      operationId: revokeApiToken
+      summary: Revoke one of the caller's API tokens
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: Token id, from the list endpoint.
+          schema: { type: integer, example: 1 }
+      responses:
+        '204':
+          description: Revoked. The token stops working immediately.
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    bearerToken:
+      type: http
+      scheme: bearer
+      description: A personal API token, e.g. `1|W1VptDsbh3qRDGv30F1mQRsbHtKypa4F0xC0XY6d26d06788`.
+  schemas:
+    ApiToken:
+      type: object
+      required: [id, name, last_used_at, created_at]
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: CI script }
+        last_used_at: { type: [string, 'null'], format: date-time, example: null }
+        created_at: { type: [string, 'null'], format: date-time, example: '2026-11-18T17:00:00+00:00' }
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    ValidationError:
+      type: object
+      required: [message, errors]
+      properties:
+        message: { type: string, example: These credentials do not match our records. }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+          example:
+            email: [These credentials do not match our records.]
+  responses:
+    ValidationError:
+      description: The request failed validation.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+    Unauthenticated:
+      description: Missing or invalid token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: Unauthenticated. }
+    NotFound:
+      description: The resource does not exist or belongs to another user.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    TooManyRequests:
+      description: Rate limit hit; retry after the `Retry-After` header.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { message: Too Many Attempts. }
