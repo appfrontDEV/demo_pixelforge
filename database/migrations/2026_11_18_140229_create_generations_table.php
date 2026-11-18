@@ -10,7 +10,8 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * Money columns are integers only: estimates and price in cents, provider cost in nano-USD.
+     * Money columns are integers only. Provider cost and customer price are exact nano-USD (the
+     * price is rounded to cents only on totals); the estimate is a display range in cents.
      */
     public function up(): void
     {
@@ -34,7 +35,7 @@ return new class extends Migration
             $table->json('usage')->nullable();
             $table->json('rates')->nullable();
             $table->bigInteger('provider_cost_nusd')->nullable();
-            $table->bigInteger('price_cents')->nullable();
+            $table->bigInteger('price_nusd')->nullable();
 
             $table->text('image_url')->nullable();
             $table->timestamp('image_url_expires_at')->nullable();

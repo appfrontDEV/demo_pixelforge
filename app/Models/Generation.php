@@ -34,7 +34,7 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $usage
  * @property array<string, mixed>|null $rates
  * @property NanoUsd|null $provider_cost_nusd
- * @property Cents|null $price_cents
+ * @property NanoUsd|null $price_nusd
  * @property string|null $image_url
  * @property Carbon|null $image_url_expires_at
  * @property string|null $error_code
@@ -58,7 +58,7 @@ use Illuminate\Support\Carbon;
     'usage',
     'rates',
     'provider_cost_nusd',
-    'price_cents',
+    'price_nusd',
     'image_url',
     'image_url_expires_at',
     'error_code',
@@ -96,7 +96,7 @@ class Generation extends Model
             'estimate_min_cents' => AsCents::class,
             'estimate_max_cents' => AsCents::class,
             'provider_cost_nusd' => AsNanoUsd::class,
-            'price_cents' => AsCents::class,
+            'price_nusd' => AsNanoUsd::class,
             'image_url_expires_at' => 'datetime',
             'submitted_at' => 'datetime',
             'started_at' => 'datetime',
