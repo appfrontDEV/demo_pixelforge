@@ -5,7 +5,6 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -30,10 +29,12 @@ class ApiTokenIssueRequest extends ApiTokenStoreRequest
     }
 
     /**
-     * Hash checked when the email is unknown, so both failure paths cost one bcrypt check and
-     * response timing does not reveal which emails have accounts.
+     * Bcrypt hash of a random, discarded secret, at the production cost (BCRYPT_ROUNDS=12).
+     * Checked when the email is unknown, so both failure paths run exactly one bcrypt check and
+     * response timing does not reveal which emails have accounts. Precomputed on purpose:
+     * hashing per request would make the unknown-email path slower.
      */
-    private static ?string $dummyHash = null;
+    private const string UNKNOWN_USER_HASH = '$2y$12$3swU7bjtUeSQuMrW6y/pDOngcmw7vO7H9FdclTOEa5qWFdvn3tkf.';
 
     /**
      * Output: the account matching the credentials. Throws a 422 on `email` when they do not
@@ -44,7 +45,7 @@ class ApiTokenIssueRequest extends ApiTokenStoreRequest
     public function authenticatedUser(): User
     {
         $user = User::query()->where('email', $this->string('email')->value())->first();
-        $hash = $user === null ? (self::$dummyHash ??= Hash::make(Str::random(40))) : $user->password;
+        $hash = $user->password ?? self::UNKNOWN_USER_HASH;
 
         if (! Hash::check($this->string('password')->value(), $hash) || $user === null) {
             throw ValidationException::withMessages(['email' => __('auth.failed')]);
