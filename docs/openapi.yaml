@@ -31,7 +31,10 @@ paths:
       summary: Exchange account credentials for a new API token
       description: |
         Returns the plain-text token **once**; only a hash is stored. Wrong credentials and
-        unknown emails return the same `422` on `email`. Limited to 6 requests per minute.
+        unknown emails return the same `422` on `email`, in the same time. Limited like web login:
+        5 attempts per minute per email + IP (and 6 per minute per IP).
+
+        Changing or resetting the account password revokes all of its tokens.
       security: []
       requestBody:
         required: true

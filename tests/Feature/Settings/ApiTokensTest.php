@@ -12,7 +12,8 @@ use Tests\TestCase;
 /**
  * Test strategy: the API tokens settings page, which uses the same actions as the API and console.
  * Data: factory users; tokens created through the model.
- * - The page lists only the signed-in user's tokens, as metadata (no secrets); guests are redirected.
+ * - The page lists only the signed-in user's tokens, as metadata (no secrets); guests are redirected,
+ *   and managing tokens needs a recent password confirmation (like the security page).
  * - Creating validates `name`, stores a token and flashes the plain-text value once as `newToken`.
  * - Revoking deletes the user's own token; someone else's token is 404 and survives.
  */
@@ -27,6 +28,7 @@ class ApiTokensTest extends TestCase
         User::factory()->create()->createToken('theirs');
 
         $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->get(route('api-tokens.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
@@ -45,11 +47,24 @@ class ApiTokensTest extends TestCase
         $this->get(route('api-tokens.index'))->assertRedirect(route('login'));
     }
 
+    public function test_managing_tokens_requires_password_confirmation(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('mine')->accessToken;
+
+        $this->actingAs($user)->get(route('api-tokens.index'))->assertRedirect(route('password.confirm'));
+        $this->actingAs($user)->post(route('api-tokens.store'), ['name' => 'x'])->assertRedirect(route('password.confirm'));
+        $this->actingAs($user)->delete(route('api-tokens.destroy', $token->id))->assertRedirect(route('password.confirm'));
+
+        $this->assertSame(1, $user->tokens()->count());
+    }
+
     public function test_creating_a_token_flashes_it_once(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->from(route('api-tokens.index'))
             ->post(route('api-tokens.store'), ['name' => 'CI script'])
             ->assertRedirect(route('api-tokens.index'))
@@ -65,6 +80,7 @@ class ApiTokensTest extends TestCase
         $user = User::factory()->create();
 
         $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->post(route('api-tokens.store'), ['name' => ''])
             ->assertSessionHasErrors('name');
 
@@ -77,6 +93,7 @@ class ApiTokensTest extends TestCase
         $token = $user->createToken('mine')->accessToken;
 
         $this->actingAs($user)
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->from(route('api-tokens.index'))
             ->delete(route('api-tokens.destroy', $token->id))
             ->assertRedirect(route('api-tokens.index'));
@@ -89,6 +106,7 @@ class ApiTokensTest extends TestCase
         $theirs = User::factory()->create()->createToken('theirs')->accessToken;
 
         $this->actingAs(User::factory()->create())
+            ->withSession(['auth.password_confirmed_at' => time()])
             ->delete(route('api-tokens.destroy', $theirs->id))
             ->assertNotFound();
 

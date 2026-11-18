@@ -12,7 +12,7 @@ class ResetUserPassword implements ResetsUserPasswords
     use PasswordValidationRules;
 
     /**
-     * Validate and reset the user's forgotten password.
+     * Validate and reset the user's forgotten password, then revoke all their API tokens.
      *
      * @param  array<string, string>  $input
      */
@@ -25,5 +25,7 @@ class ResetUserPassword implements ResetsUserPasswords
         $user->forceFill([
             'password' => $input['password'],
         ])->save();
+
+        $user->tokens()->delete();
     }
 }

@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Route;
  */
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('tokens', [ApiTokenController::class, 'store'])
-        ->middleware('throttle:6,1')
+        ->middleware(['throttle:6,1', 'throttle:login'])
         ->name('tokens.store');
 
     Route::middleware('auth:sanctum')->group(function () {

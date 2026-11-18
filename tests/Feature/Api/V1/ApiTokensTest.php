@@ -11,7 +11,8 @@ use Tests\TestCase;
  * Test strategy: /api/v1/tokens, the API side of token management (documented in docs/openapi.yaml).
  * Data: a user created by the factory with password "password"; tokens created through the model.
  * - POST exchanges valid credentials for a token (201, {data: {id, name, ..., token}}) that then
- *   authenticates; bad credentials and missing fields give 422 {message, errors}; it is throttled.
+ *   authenticates; bad credentials and missing fields give 422 {message, errors}; it is throttled
+ *   by Fortify's login limiter (5/min per email + IP).
  * - GET lists only the caller's tokens, never secrets; unauthenticated calls get a JSON 401,
  *   even without an Accept header (no redirect to /login).
  * - DELETE revokes the caller's own token (204); someone else's token is 404 and survives.
@@ -61,11 +62,11 @@ class ApiTokensTest extends TestCase
             ->assertJsonValidationErrors(['email', 'password', 'name']);
     }
 
-    public function test_issuing_is_throttled(): void
+    public function test_issuing_is_throttled_per_email_like_login(): void
     {
         $payload = ['email' => 'nobody@example.com', 'password' => 'x', 'name' => 'x'];
 
-        for ($attempt = 1; $attempt <= 6; $attempt++) {
+        for ($attempt = 1; $attempt <= 5; $attempt++) {
             $this->postJson(route('api.v1.tokens.store'), $payload)->assertUnprocessable();
         }
 

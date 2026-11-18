@@ -25,13 +25,15 @@ class SecurityController extends Controller
     }
 
     /**
-     * Update the user's password.
+     * Update the user's password and revoke all their API tokens, which may have been issued by
+     * whoever knew the old password.
      */
     public function update(PasswordUpdateRequest $request): RedirectResponse
     {
         $request->user()->update([
             'password' => $request->password,
         ]);
+        $request->user()->tokens()->delete();
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Password updated.')]);
 
