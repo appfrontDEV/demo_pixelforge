@@ -125,46 +125,73 @@ class Generation extends Model
      * The guard is a conditional UPDATE on the stored status, so a stale in-memory copy (e.g. a
      * late webhook racing the reconcile job) can never move the row back. The lifecycle timestamp
      * for $next (submitted_at / started_at / completed_at) defaults to now() unless already set or
-     * given in $attributes.
+     * given in $attributes. When nothing moves, the model is refreshed to what is actually stored.
      *
      * @param  array<string, mixed>  $attributes
      */
     public function transitionTo(GenerationStatus $next, array $attributes = []): bool
     {
-        $timestamp = match ($next) {
-            GenerationStatus::Pending => null,
-            GenerationStatus::Queued => 'submitted_at',
-            GenerationStatus::Processing => 'started_at',
-            GenerationStatus::Succeeded, GenerationStatus::Failed => 'completed_at',
-        };
-
-        if ($timestamp !== null && ! array_key_exists($timestamp, $attributes) && $this->getAttribute($timestamp) === null) {
-            $attributes[$timestamp] = $this->freshTimestamp();
-        }
-
-        // Run the values through the model's mutators and casts, without touching $this yet.
-        $draft = (clone $this)->fill($attributes);
-        $draft->status = $next;
-        $draft->updateTimestamps();
-        $changes = array_intersect_key(
-            $draft->getAttributes(),
-            array_flip([...array_keys($attributes), 'status', $this->getUpdatedAtColumn()]),
-        );
+        $changes = $this->storedChangesFor($next, $this->withLifecycleTimestamp($next, $attributes));
 
         $moved = static::query()
             ->whereKey($this->getKey())
-            ->whereIn('status', array_map(fn (GenerationStatus $s): string => $s->value, $next->allowedPredecessors()))
+            ->whereIn('status', array_column($next->allowedPredecessors(), 'value'))
             ->toBase()
             ->update($changes) === 1;
 
-        if ($moved) {
-            $this->setRawAttributes(array_merge($this->getAttributes(), $changes));
-            $this->syncOriginalAttributes(array_keys($changes));
-        } else {
-            // Another process may have moved the row; reflect what is actually stored.
-            $this->refresh();
-        }
+        $moved ? $this->syncStoredChanges($changes) : $this->refresh();
 
         return $moved;
+    }
+
+    /**
+     * Input: the target status and the caller's attributes.
+     * Output: the attributes plus now() for the status's lifecycle column, unless the caller
+     * gave one or the model already has one.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function withLifecycleTimestamp(GenerationStatus $next, array $attributes): array
+    {
+        $column = $next->lifecycleTimestampColumn();
+
+        if ($column !== null && ! array_key_exists($column, $attributes) && $this->getAttribute($column) === null) {
+            $attributes[$column] = $this->freshTimestamp();
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * Input: the target status and the attributes to write.
+     * Output: the raw column values (after mutators and casts) for those attributes, status and
+     * updated_at. A clone is used so this model is untouched until the UPDATE succeeds.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    private function storedChangesFor(GenerationStatus $next, array $attributes): array
+    {
+        $draft = (clone $this)->fill($attributes);
+        $draft->status = $next;
+        $draft->updateTimestamps();
+
+        return array_intersect_key(
+            $draft->getAttributes(),
+            array_flip([...array_keys($attributes), 'status', $this->getUpdatedAtColumn()]),
+        );
+    }
+
+    /**
+     * Input: raw column values just written by transitionTo(). Output: none; the model now
+     * holds them as its clean, persisted state.
+     *
+     * @param  array<string, mixed>  $changes
+     */
+    private function syncStoredChanges(array $changes): void
+    {
+        $this->setRawAttributes(array_merge($this->getAttributes(), $changes));
+        $this->syncOriginalAttributes(array_keys($changes));
     }
 }
