@@ -108,3 +108,12 @@ Each entry summarizes one request and what was done about it.
 - `pricing()` reads `GET /v1/pricing`, which needs no key, and caches it as a plain array. Failures are never cached. `generation($id)` reads `GET /v1/generations/{id}` with the bearer key and refuses to run without one.
 - Every documented `error.code` maps to its own exception class, which carries the HTTP status, `param`/`errors`, `Retry-After` and the rate-limit headers. Retryable errors (overloaded, rate and concurrency limits, network failures) share a `RetryableException` parent.
 - Checked live against the real pricing endpoint.
+
+### 008 · 2026-11-18 · Webhook tunnel with ngrok
+
+**Request:** Create a webhook tunnel using ngrok, so Pixelforge can reach the local app.
+
+**Done:**
+- Upgraded the ngrok agent from 3.11 to 3.39 via Homebrew; the account now refuses agents older than 3.29.
+- Opened a tunnel with `ngrok http 8000`, forwarding a public HTTPS URL to `php artisan serve`. Requests can be inspected at `http://localhost:4040`.
+- No webhook route exists yet; the receiving endpoint comes with #12.
