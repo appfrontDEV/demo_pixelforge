@@ -138,3 +138,11 @@ Each entry summarizes one request and what was done about it.
 - Why: rounding every row up adds up to ~1¢ per generation. Three cheap generations at $0.0119 cost 6¢ that way, but 4¢ when summed first. The customer now pays cost + 25% with less than 1¢ of rounding overall.
 - `CustomerPrice` gained `exactFromProviderCost()` (exact nano-USD) and `roundUpToCents()` (for totals). `fromProviderCost()` stays, for a total cost.
 - Updated #1, #6, #11, #13, #16 and #17 to the new rule. Credit balances (#17) will use a nano-USD ledger, and the history (#11) will show sub-cent prices so the rows add up to the totals.
+
+### 011 · 2026-11-18 · Remove another project's specs from CLAUDE.md
+
+**Request:** Remove the course-platform sections that arrived in `CLAUDE.md` with #5.
+
+**Done:**
+- Deleted the `domain_specifications` (Microlearning Course Platform), `storage_specifications` (courses/lessons schema) and `course-plan` (course JSON generator) sections. They described another project and don't apply to PixelForge.
+- The Laravel Boost and BeeAPro development guidelines are unchanged.
