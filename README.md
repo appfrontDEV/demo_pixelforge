@@ -109,3 +109,21 @@ Each entry summarizes one request and what was done about it.
 - `GenerationStatus` enum: `pending → queued → processing → succeeded | failed`. Steps can be skipped, since a webhook can arrive before the create response. A status never moves back, and `succeeded`/`failed` are final.
 - `transitionTo()` is the only way to change status (`status` isn't mass-assignable). It is a conditional `UPDATE`, so a stale copy or a late webhook can't move a finished generation back. Extra fields, such as cost and price, are written in the same statement. Repeating a transition is a no-op.
 - Tests cover all 25 transitions, idempotent repeats, the stale-copy race, and writing cost and price with the move.
+### 007 · 2026-11-18 · Pixelforge client (#5)
+
+**Request:** Continue with sub-issue #5: the Pixelforge API client. The folder chosen is `app/Services/Pixelforge`.
+
+**Done:**
+- `PixelforgeClient`: the single gateway to the API. Base URL, key and timeouts come from `config/services.php` and `.env`, with one key and webhook secret per environment.
+- `pricing()` reads `GET /v1/pricing`, which needs no key, and caches it as a plain array. Failures are never cached. `generation($id)` reads `GET /v1/generations/{id}` with the bearer key and refuses to run without one.
+- Every documented `error.code` maps to its own exception class, which carries the HTTP status, `param`/`errors`, `Retry-After` and the rate-limit headers. Retryable errors (overloaded, rate and concurrency limits, network failures) share a `RetryableException` parent.
+- Checked live against the real pricing endpoint.
+
+### 008 · 2026-11-18 · Webhook tunnel with ngrok
+
+**Request:** Create a webhook tunnel using ngrok, so Pixelforge can reach the local app.
+
+**Done:**
+- Upgraded the ngrok agent from 3.11 to 3.39 via Homebrew; the account now refuses agents older than 3.29.
+- Opened a tunnel with `ngrok http 8000`, forwarding a public HTTPS URL to `php artisan serve`. Requests can be inspected at `http://localhost:4040`.
+- No webhook route exists yet; the receiving endpoint comes with #12.
