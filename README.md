@@ -87,3 +87,14 @@ Each entry summarizes one request and what was done about it.
 - Kept registration and password confirmation. Left out email verification, two-factor and passkeys, so testers can sign up without mail.
 - Kept the AGPL license, README and agent instruction files. Merged the kit's `.gitignore` entries.
 - Clean-up: stopped tracking `database/database.sqlite` and a compiled view, and restored Laravel's `storage/**/.gitignore` files.
+
+### 006 · 2026-11-17 · Money primitives (#4)
+
+**Request:** Continue with sub-issue #4: exact money handling.
+
+**Done:**
+- `NanoUsd`: exact provider cost in integer nano-USD. It parses and formats the Pixelforge 9-decimal strings, such as `"0.373875000"`, and rejects anything a float could produce.
+- `Cents`: what customers pay, in whole cents, with integer-only display formatting such as `$1,234.56`.
+- `ProviderCostCalculator`: Σ(tokens × rate per 1M) from a generation's own `usage` and `rates`. It ignores `total_tokens` and refuses to bill anything it can't compute exactly.
+- `CustomerPrice`: cost × 125%, always rounded up to whole cents in one integer step. The docs' worked maximum, $0.373875, costs the customer 47¢; a failed generation costs 0¢.
+- Eloquent casts `AsNanoUsd` and `AsCents` for BIGINT columns. They reject floats on write, accept BIGINT-as-string on read, and serialize nano-USD as the 9-decimal string.
