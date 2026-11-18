@@ -1,0 +1,170 @@
+<?php
+
+namespace App\Models;
+
+use App\Casts\AsCents;
+use App\Casts\AsNanoUsd;
+use App\Enums\GenerationStatus;
+use App\Money\Cents;
+use App\Money\NanoUsd;
+use Database\Factories\GenerationFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
+
+/**
+ * One image generation request and its outcome.
+ *
+ * `status` is not fillable: change it only through {@see Generation::transitionTo()}, which
+ * enforces the forward-only lifecycle in {@see GenerationStatus}.
+ *
+ * @property string $id
+ * @property int|null $user_id
+ * @property string|null $provider_id
+ * @property string $prompt
+ * @property string $size
+ * @property string $quality
+ * @property list<string>|null $reference_images
+ * @property GenerationStatus $status
+ * @property Cents|null $estimate_min_cents
+ * @property Cents|null $estimate_max_cents
+ * @property array<string, mixed>|null $usage
+ * @property array<string, mixed>|null $rates
+ * @property NanoUsd|null $provider_cost_nusd
+ * @property Cents|null $price_cents
+ * @property string|null $image_url
+ * @property Carbon|null $image_url_expires_at
+ * @property string|null $error_code
+ * @property string|null $error_message
+ * @property Carbon|null $submitted_at
+ * @property Carbon|null $started_at
+ * @property Carbon|null $completed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read User|null $user
+ */
+#[Fillable([
+    'user_id',
+    'provider_id',
+    'prompt',
+    'size',
+    'quality',
+    'reference_images',
+    'estimate_min_cents',
+    'estimate_max_cents',
+    'usage',
+    'rates',
+    'provider_cost_nusd',
+    'price_cents',
+    'image_url',
+    'image_url_expires_at',
+    'error_code',
+    'error_message',
+    'submitted_at',
+    'started_at',
+    'completed_at',
+])]
+class Generation extends Model
+{
+    /** @use HasFactory<GenerationFactory> */
+    use HasFactory, HasUuids;
+
+    /**
+     * New rows start as pending, matching the column default.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'status' => 'pending',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'status' => GenerationStatus::class,
+            'reference_images' => 'array',
+            'usage' => 'array',
+            'rates' => 'array',
+            'estimate_min_cents' => AsCents::class,
+            'estimate_max_cents' => AsCents::class,
+            'provider_cost_nusd' => AsNanoUsd::class,
+            'price_cents' => AsCents::class,
+            'image_url_expires_at' => 'datetime',
+            'submitted_at' => 'datetime',
+            'started_at' => 'datetime',
+            'completed_at' => 'datetime',
+        ];
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Moves the generation forward to $next, atomically, together with $attributes.
+     *
+     * Input:
+     *  - $next: the target status.
+     *  - $attributes: extra fillable columns to write in the same UPDATE (e.g. cost and price on
+     *    success). Casts apply, so pass Cents / NanoUsd / Carbon values as usual.
+     * Output: true when the row moved. False, with nothing written, when the move is backwards,
+     * leaves a final state, or targets the current status (repeat deliveries are no-ops).
+     *
+     * The guard is a conditional UPDATE on the stored status, so a stale in-memory copy (e.g. a
+     * late webhook racing the reconcile job) can never move the row back. The lifecycle timestamp
+     * for $next (submitted_at / started_at / completed_at) defaults to now() unless already set or
+     * given in $attributes.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function transitionTo(GenerationStatus $next, array $attributes = []): bool
+    {
+        $timestamp = match ($next) {
+            GenerationStatus::Pending => null,
+            GenerationStatus::Queued => 'submitted_at',
+            GenerationStatus::Processing => 'started_at',
+            GenerationStatus::Succeeded, GenerationStatus::Failed => 'completed_at',
+        };
+
+        if ($timestamp !== null && ! array_key_exists($timestamp, $attributes) && $this->getAttribute($timestamp) === null) {
+            $attributes[$timestamp] = $this->freshTimestamp();
+        }
+
+        // Run the values through the model's mutators and casts, without touching $this yet.
+        $draft = (clone $this)->fill($attributes);
+        $draft->status = $next;
+        $draft->updateTimestamps();
+        $changes = array_intersect_key(
+            $draft->getAttributes(),
+            array_flip([...array_keys($attributes), 'status', $this->getUpdatedAtColumn()]),
+        );
+
+        $moved = static::query()
+            ->whereKey($this->getKey())
+            ->whereIn('status', array_map(fn (GenerationStatus $s): string => $s->value, $next->allowedPredecessors()))
+            ->toBase()
+            ->update($changes) === 1;
+
+        if ($moved) {
+            $this->setRawAttributes(array_merge($this->getAttributes(), $changes));
+            $this->syncOriginalAttributes(array_keys($changes));
+        } else {
+            // Another process may have moved the row; reflect what is actually stored.
+            $this->refresh();
+        }
+
+        return $moved;
+    }
+}
