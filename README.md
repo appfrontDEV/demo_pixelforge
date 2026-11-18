@@ -98,3 +98,13 @@ Each entry summarizes one request and what was done about it.
 - `ProviderCostCalculator`: Σ(tokens × rate per 1M) from a generation's own `usage` and `rates`. It ignores `total_tokens` and refuses to bill anything it can't compute exactly.
 - `CustomerPrice`: cost × 125%, always rounded up to whole cents in one integer step. The docs' worked maximum, $0.373875, costs the customer 47¢; a failed generation costs 0¢.
 - Eloquent casts `AsNanoUsd` and `AsCents` for BIGINT columns. They reject floats on write, accept BIGINT-as-string on read, and serialize nano-USD as the 9-decimal string.
+
+### 007 · 2026-11-18 · Pixelforge client (#5)
+
+**Request:** Continue with sub-issue #5: the Pixelforge API client. The folder chosen is `app/Services/Pixelforge`.
+
+**Done:**
+- `PixelforgeClient`: the single gateway to the API. Base URL, key and timeouts come from `config/services.php` and `.env`, with one key and webhook secret per environment.
+- `pricing()` reads `GET /v1/pricing`, which needs no key, and caches it as a plain array. Failures are never cached. `generation($id)` reads `GET /v1/generations/{id}` with the bearer key and refuses to run without one.
+- Every documented `error.code` maps to its own exception class, which carries the HTTP status, `param`/`errors`, `Retry-After` and the rate-limit headers. Retryable errors (overloaded, rate and concurrency limits, network failures) share a `RetryableException` parent.
+- Checked live against the real pricing endpoint.

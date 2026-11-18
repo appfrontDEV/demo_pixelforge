@@ -2,7 +2,10 @@
 
 namespace App\Providers;
 
+use App\Services\Pixelforge\PixelforgeClient;
+use App\Services\Pixelforge\PixelforgeErrorFactory;
 use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -15,7 +18,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(PixelforgeClient::class, fn (Application $app): PixelforgeClient => new PixelforgeClient(
+            baseUrl: (string) config('services.pixelforge.base_url'),
+            apiKey: config('services.pixelforge.api_key'),
+            timeoutSeconds: (int) config('services.pixelforge.timeout'),
+            pricingCacheSeconds: (int) config('services.pixelforge.pricing_cache_seconds'),
+            errorFactory: $app->make(PixelforgeErrorFactory::class),
+        ));
     }
 
     /**
