@@ -59,7 +59,7 @@ class GenerationFactory extends Factory
     }
 
     /**
-     * The docs' worked maximum: $0.373875000 provider cost, 47¢ to the customer.
+     * The docs' worked maximum: $0.373875000 provider cost, $0.467343750 exact customer price.
      */
     public function succeeded(): static
     {
@@ -73,7 +73,7 @@ class GenerationFactory extends Factory
                 'total_tokens' => 16_095,
             ],
             'provider_cost_nusd' => 373_875_000,
-            'price_cents' => 47,
+            'price_nusd' => 467_343_750,
             'image_url' => fake()->imageUrl(),
             'image_url_expires_at' => now()->addHour(),
             'completed_at' => now(),
@@ -88,7 +88,7 @@ class GenerationFactory extends Factory
         return $this->processing()->state(fn (array $attributes) => [
             'status' => GenerationStatus::Failed,
             'provider_cost_nusd' => 0,
-            'price_cents' => 0,
+            'price_nusd' => 0,
             'error_code' => 'generation_failed',
             'error_message' => 'The generation failed.',
             'completed_at' => now(),
