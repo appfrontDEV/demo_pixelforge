@@ -127,7 +127,6 @@ paths:
             schema:
               type: object
               required: [prompt]
-              additionalProperties: false
               properties:
                 prompt: { type: string, maxLength: 4000, example: A lighthouse at dawn }
                 size: { $ref: '#/components/schemas/ImageSize' }

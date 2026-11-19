@@ -6,6 +6,7 @@ use App\Actions\CreateGeneration;
 use App\Concerns\GenerationValidationRules;
 use App\Enums\ImageQuality;
 use App\Enums\ImageSize;
+use App\Models\Generation;
 use App\Models\User;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -38,19 +39,29 @@ class GenerationCreate extends Command
             return self::FAILURE;
         }
 
-        $input = $validator->validated();
-        $generation = $createGeneration->handle(
+        $generation = $this->createFrom($createGeneration, $user, $validator->validated());
+
+        $this->components->info("Generation queued: {$generation->id}");
+        $this->line("Estimate: {$generation->estimate_min_cents?->format()} – {$generation->estimate_max_cents?->format()}");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Input: the owner and the validated input. Output: the new generation, with the provider
+     * defaults for a missing size or quality.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    private function createFrom(CreateGeneration $createGeneration, User $user, array $input): Generation
+    {
+        return $createGeneration->handle(
             $user,
             $input['prompt'],
             ImageSize::tryFrom($input['size'] ?? '') ?? ImageSize::default(),
             ImageQuality::tryFrom($input['quality'] ?? '') ?? ImageQuality::default(),
             array_values($input['reference_images'] ?? []),
         );
-
-        $this->components->info("Generation queued: {$generation->id}");
-        $this->line("Estimate: {$generation->estimate_min_cents?->format()} – {$generation->estimate_max_cents?->format()}");
-
-        return self::SUCCESS;
     }
 
     /**
