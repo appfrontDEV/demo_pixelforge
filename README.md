@@ -99,16 +99,6 @@ Each entry summarizes one request and what was done about it.
 - `CustomerPrice`: cost × 125%, always rounded up to whole cents in one integer step. The docs' worked maximum, $0.373875, costs the customer 47¢; a failed generation costs 0¢.
 - Eloquent casts `AsNanoUsd` and `AsCents` for BIGINT columns. They reject floats on write, accept BIGINT-as-string on read, and serialize nano-USD as the 9-decimal string.
 
-### 007 · 2026-11-18 · Generations model and state machine (#7)
-
-**Request:** Start sub-issue #7: the generations data model and its forward-only status.
-
-**Done:**
-- `generations` table, `Generation` model and factory. Ids are UUIDs, and the Pixelforge `gen_…` id is unique. Columns cover the prompt, size and quality, up to 4 reference images, the estimate in cents, `usage`/`rates`, the exact provider cost in nano-USD, the customer price in cents, the image URL and its expiry, the error code and message, and the submitted/started/completed timestamps.
-- Deleting an account keeps its generations (`user_id` is set to null), so provider costs still reconcile with `GET /v1/usage`.
-- `GenerationStatus` enum: `pending → queued → processing → succeeded | failed`. Steps can be skipped, since a webhook can arrive before the create response. A status never moves back, and `succeeded`/`failed` are final.
-- `transitionTo()` is the only way to change status (`status` isn't mass-assignable). It is a conditional `UPDATE`, so a stale copy or a late webhook can't move a finished generation back. Extra fields, such as cost and price, are written in the same statement. Repeating a transition is a no-op.
-- Tests cover all 25 transitions, idempotent repeats, the stale-copy race, and writing cost and price with the move.
 ### 007 · 2026-11-18 · Pixelforge client (#5)
 
 **Request:** Continue with sub-issue #5: the Pixelforge API client. The folder chosen is `app/Services/Pixelforge`.
@@ -127,3 +117,32 @@ Each entry summarizes one request and what was done about it.
 - Upgraded the ngrok agent from 3.11 to 3.39 via Homebrew; the account now refuses agents older than 3.29.
 - Opened a tunnel with `ngrok http 8000`, forwarding a public HTTPS URL to `php artisan serve`. Requests can be inspected at `http://localhost:4040`.
 - No webhook route exists yet; the receiving endpoint comes with #12.
+
+### 009 · 2026-11-18 · Generations model and state machine (#7)
+
+**Request:** Start sub-issue #7: the generations data model and its forward-only status.
+
+**Done:**
+- `generations` table, `Generation` model and factory. Ids are UUIDs, and the Pixelforge `gen_…` id is unique. Columns cover the prompt, size and quality, up to 4 reference images, the estimate in cents, `usage`/`rates`, the exact provider cost and customer price in nano-USD, the image URL and its expiry, the error code and message, and the submitted/started/completed timestamps.
+- Deleting an account keeps its generations (`user_id` is set to null), so provider costs still reconcile with `GET /v1/usage`.
+- `GenerationStatus` enum: `pending → queued → processing → succeeded | failed`. Steps can be skipped, since a webhook can arrive before the create response. A status never moves back, and `succeeded`/`failed` are final.
+- `transitionTo()` is the only way to change status (`status` isn't mass-assignable). It is a conditional `UPDATE`, so a stale copy or a late webhook can't move a finished generation back. Extra fields, such as cost and price, are written in the same statement. Repeating a transition is a no-op.
+- Tests cover all 25 transitions, idempotent repeats, the stale-copy race, and writing cost and price with the move.
+
+### 010 · 2026-11-18 · Round once on totals, not per generation
+
+**Request:** Instead of rounding each generation's price up to cents, keep the exact price and round only the sum.
+
+**Done:**
+- Each generation now stores its exact customer price in nano-USD (`price_nusd` = cost × 1.25, replacing `price_cents`). Rounding up to whole cents happens once, on a total such as an admin report total or a balance.
+- Why: rounding every row up adds up to ~1¢ per generation. Three cheap generations at $0.0119 cost 6¢ that way, but 4¢ when summed first. The customer now pays cost + 25% with less than 1¢ of rounding overall.
+- `CustomerPrice` gained `exactFromProviderCost()` (exact nano-USD) and `roundUpToCents()` (for totals). `fromProviderCost()` stays, for a total cost.
+- Updated #1, #6, #11, #13, #16 and #17 to the new rule. Credit balances (#17) will use a nano-USD ledger, and the history (#11) will show sub-cent prices so the rows add up to the totals.
+
+### 011 · 2026-11-18 · Remove another project's specs from CLAUDE.md
+
+**Request:** Remove the course-platform sections that arrived in `CLAUDE.md` with #5.
+
+**Done:**
+- Deleted the `domain_specifications` (Microlearning Course Platform), `storage_specifications` (courses/lessons schema) and `course-plan` (course JSON generator) sections. They described another project and don't apply to PixelForge.
+- The Laravel Boost and BeeAPro development guidelines are unchanged.

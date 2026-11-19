@@ -10,14 +10,15 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * Money columns are integers only: estimates and price in cents, provider cost in nano-USD.
+     * Money columns are integers only. Provider cost and customer price are exact nano-USD (the
+     * price is rounded to cents only on totals); the estimate is a display range in cents.
+     * user_id is nullable with nullOnDelete: deleting an account keeps its generations, which the
+     * admin report must still reconcile against Pixelforge's GET /v1/usage.
      */
     public function up(): void
     {
         Schema::create('generations', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            // Nullable + nullOnDelete: deleting an account keeps its generations, which the
-            // admin report must still reconcile against Pixelforge's GET /v1/usage.
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->string('provider_id')->nullable()->unique();
 
@@ -34,7 +35,7 @@ return new class extends Migration
             $table->json('usage')->nullable();
             $table->json('rates')->nullable();
             $table->bigInteger('provider_cost_nusd')->nullable();
-            $table->bigInteger('price_cents')->nullable();
+            $table->bigInteger('price_nusd')->nullable();
 
             $table->text('image_url')->nullable();
             $table->timestamp('image_url_expires_at')->nullable();

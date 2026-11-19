@@ -52,6 +52,19 @@ enum GenerationStatus: string
     }
 
     /**
+     * The timestamp column stamped when a generation enters this status, if any.
+     */
+    public function lifecycleTimestampColumn(): ?string
+    {
+        return match ($this) {
+            self::Pending => null,
+            self::Queued => 'submitted_at',
+            self::Processing => 'started_at',
+            self::Succeeded, self::Failed => 'completed_at',
+        };
+    }
+
+    /**
      * Statuses from which $this can be reached. Used as the guard in the conditional UPDATE.
      *
      * @return list<self>

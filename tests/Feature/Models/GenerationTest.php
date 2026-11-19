@@ -5,7 +5,6 @@ namespace Tests\Feature\Models;
 use App\Enums\GenerationStatus;
 use App\Models\Generation;
 use App\Models\User;
-use App\Money\Cents;
 use App\Money\NanoUsd;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -42,14 +41,14 @@ class GenerationTest extends TestCase
         Carbon::setTestNow('2026-11-18 10:00:00');
         $generation = Generation::factory()->create();
 
-        $this->assertTrue($generation->transitionTo(GenerationStatus::Succeeded, ['price_cents' => 47]));
+        $this->assertTrue($generation->transitionTo(GenerationStatus::Succeeded, ['price_nusd' => 467_343_750]));
 
         Carbon::setTestNow('2026-11-18 10:05:00');
-        $this->assertFalse($generation->transitionTo(GenerationStatus::Succeeded, ['price_cents' => 99]));
+        $this->assertFalse($generation->transitionTo(GenerationStatus::Succeeded, ['price_nusd' => 999]));
 
         $stored = $generation->fresh();
         $this->assertSame(GenerationStatus::Succeeded, $stored?->status);
-        $this->assertSame(47, $stored->price_cents?->cents);
+        $this->assertSame(467_343_750, $stored->price_nusd?->nanos);
         $this->assertEquals(Carbon::parse('2026-11-18 10:00:00'), $stored->completed_at);
         $this->assertEquals(Carbon::parse('2026-11-18 10:00:00'), $stored->updated_at);
     }
@@ -73,11 +72,11 @@ class GenerationTest extends TestCase
         $stale = Generation::findOrFail($generation->id);
 
         $this->assertTrue($generation->transitionTo(GenerationStatus::Failed, ['error_code' => 'generation_failed']));
-        $this->assertFalse($stale->transitionTo(GenerationStatus::Succeeded, ['price_cents' => 47]));
+        $this->assertFalse($stale->transitionTo(GenerationStatus::Succeeded, ['price_nusd' => 467_343_750]));
 
         $stored = $generation->fresh();
         $this->assertSame(GenerationStatus::Failed, $stored?->status);
-        $this->assertNull($stored->price_cents);
+        $this->assertNull($stored->price_nusd);
     }
 
     public function test_it_writes_attributes_through_casts_with_the_transition(): void
@@ -88,7 +87,7 @@ class GenerationTest extends TestCase
         $moved = $generation->transitionTo(GenerationStatus::Succeeded, [
             'usage' => ['output_tokens' => 6_450],
             'provider_cost_nusd' => NanoUsd::fromDecimalString('0.373875000'),
-            'price_cents' => Cents::fromCents(47),
+            'price_nusd' => NanoUsd::fromDecimalString('0.467343750'),
             'completed_at' => $completedAt,
         ]);
 
@@ -98,7 +97,7 @@ class GenerationTest extends TestCase
         $stored = $generation->fresh();
         $this->assertSame(['output_tokens' => 6_450], $stored?->usage);
         $this->assertSame('0.373875000', $stored->provider_cost_nusd?->toDecimalString());
-        $this->assertSame(47, $stored->price_cents?->cents);
+        $this->assertSame('0.467343750', $stored->price_nusd?->toDecimalString());
         $this->assertEquals($completedAt, $stored->completed_at);
     }
 
@@ -150,6 +149,6 @@ class GenerationTest extends TestCase
         $this->assertSame(GenerationStatus::Succeeded, $succeeded->status);
         $this->assertSame('0.373875000', $succeeded->provider_cost_nusd?->toDecimalString());
         $this->assertSame(GenerationStatus::Failed, $failed->status);
-        $this->assertSame(0, $failed->price_cents?->cents);
+        $this->assertTrue($failed->price_nusd?->isZero());
     }
 }
