@@ -17,6 +17,7 @@ use Tests\TestCase;
  * - Configuration comes from config('services.pixelforge.*'), one key per environment.
  * - GET /v1/pricing needs no auth, is cached as a plain array, and failures are not cached.
  * - Authenticated calls send the bearer key and refuse to run without one.
+ * - Creating a generation sends the Idempotency-Key and requires an `id` in the response.
  * Fixture: the pricing payload documented at /docs#pricing.
  */
 class PixelforgeClientTest extends TestCase
@@ -95,6 +96,31 @@ class PixelforgeClientTest extends TestCase
         $this->assertSame('processing', $generation['status']);
         Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer pf_test_key')
             && $request->hasHeader('Accept', 'application/json'));
+    }
+
+    public function test_it_creates_a_generation_with_an_idempotency_key(): void
+    {
+        Http::fake([self::BASE_URL.'/v1/generations' => Http::response(['id' => 'gen_123', 'status' => 'queued'], 202)]);
+
+        $generation = $this->client()->createGeneration(['prompt' => 'A fox'], 'local-uuid');
+
+        $this->assertSame('gen_123', $generation['id']);
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'POST'
+            && $request->hasHeader('Idempotency-Key', 'local-uuid')
+            && $request->hasHeader('Authorization', 'Bearer pf_test_key')
+            && $request->data() === ['prompt' => 'A fox']);
+    }
+
+    public function test_it_rejects_a_created_generation_without_an_id(): void
+    {
+        Http::fake([self::BASE_URL.'/v1/generations' => Http::response(['status' => 'queued'], 202)]);
+
+        try {
+            $this->client()->createGeneration(['prompt' => 'A fox'], 'local-uuid');
+            $this->fail('Expected a generation without an id to be rejected.');
+        } catch (PixelforgeException $exception) {
+            $this->assertSame('unexpected_response', $exception->errorCode);
+        }
     }
 
     public function test_it_refuses_authenticated_calls_without_an_api_key(): void

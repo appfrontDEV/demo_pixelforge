@@ -23,6 +23,8 @@ security:
 tags:
   - name: API tokens
     description: Personal tokens for the API. Console parity via `api-tokens:create|list|revoke`.
+  - name: Generations
+    description: Image generations. Web parity via `POST /generations`, console via `generations:create`.
   - name: Cost estimate
     description: Estimated customer price range per size × quality. Web parity via `GET /cost-estimate`, console via `cost:estimate {size} {quality}`.
 paths:
@@ -104,6 +106,48 @@ paths:
           description: Revoked. The token stops working immediately.
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /generations:
+    post:
+      tags: [Generations]
+      operationId: createGeneration
+      summary: Create a generation and queue its submission to Pixelforge
+      description: |
+        Validates the input with the same rules as Pixelforge, stores the generation as `pending`
+        with the current cost estimate, and queues its submission. Returns at once with `202`;
+        the status then moves forward on its own: `pending → queued → processing → succeeded | failed`.
+
+        The submission uses the generation `id` as its idempotency key, so retries never create a
+        second provider generation. If Pixelforge rejects it later (for example a content policy
+        violation), the generation becomes `failed` at no cost, with the reason in `error`; for a
+        provider validation error, `error.fields` names the invalid parameters.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string, maxLength: 4000, example: A lighthouse at dawn }
+                size: { $ref: '#/components/schemas/ImageSize' }
+                quality: { $ref: '#/components/schemas/ImageQuality' }
+                reference_images:
+                  type: array
+                  maxItems: 4
+                  items: { type: string, format: uri, description: An http or https URL. }
+                  example: ['https://example.com/style.png']
+      responses:
+        '202':
+          description: Stored and queued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/Generation' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
   /cost-estimate:
     get:
       tags: [Cost estimate]
@@ -157,6 +201,40 @@ components:
       type: string
       enum: [low, medium, high]
       example: high
+    Generation:
+      type: object
+      required: [id, status, prompt, size, quality, reference_images, estimate_min_cents, estimate_max_cents, price_usd, image_url, image_url_expires_at, error, created_at, completed_at]
+      properties:
+        id: { type: string, format: uuid, example: 9d6f3c1e-2b7a-4c55-9e0d-1f2a3b4c5d6e }
+        status: { type: string, enum: [pending, queued, processing, succeeded, failed], example: pending }
+        prompt: { type: string, example: A lighthouse at dawn }
+        size: { $ref: '#/components/schemas/ImageSize' }
+        quality: { $ref: '#/components/schemas/ImageQuality' }
+        reference_images: { type: array, items: { type: string, format: uri }, example: ['https://example.com/style.png'] }
+        estimate_min_cents: { type: [integer, 'null'], description: Estimated minimum price in whole US cents., example: 12 }
+        estimate_max_cents: { type: [integer, 'null'], description: Estimated maximum price in whole US cents., example: 47 }
+        price_usd:
+          type: [string, 'null']
+          description: The exact price, a decimal string in US dollars with 9 decimals. Null until known; "0.000000000" when failed.
+          example: null
+        image_url: { type: [string, 'null'], format: uri, example: null }
+        image_url_expires_at: { type: [string, 'null'], format: date-time, example: null }
+        error:
+          oneOf:
+            - type: 'null'
+            - type: object
+              required: [code, message, fields]
+              properties:
+                code: { type: string, example: validation_failed }
+                message: { type: [string, 'null'], example: The selected size is invalid. }
+                fields:
+                  type: object
+                  description: Problems per parameter, for provider validation errors; empty otherwise.
+                  additionalProperties: { type: array, items: { type: string } }
+                  example: { size: ['The size must be one of: 1024x1024, 1536x1024, 1024x1536.'] }
+          example: null
+        created_at: { type: [string, 'null'], format: date-time, example: '2026-11-19T14:03:11+00:00' }
+        completed_at: { type: [string, 'null'], format: date-time, example: null }
     CostEstimate:
       type: object
       required: [size, quality, min_cents, max_cents, sample_count]
