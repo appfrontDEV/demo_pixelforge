@@ -44,6 +44,13 @@ Run tests with `php artisan test`.
 - Changing or resetting your password revokes all of your tokens.
 - The same works over the API (`POST /api/v1/tokens` with your email and password, then `GET` and `DELETE`) and from the console (`php artisan api-tokens:create|list|revoke`). The API is documented in [`docs/openapi.yaml`](docs/openapi.yaml).
 
+### Image generation
+
+- Create an image generation from a prompt (up to 4,000 characters), with a size (1024x1024, 1536x1024 or 1024x1536), a quality (low, medium or high) and up to 4 reference image URLs. Input is checked with the same rules as Pixelforge before anything is sent.
+- The request returns at once with the generation `pending` and its estimated price range; it is then sent to Pixelforge in the background. Retries never create a duplicate or bill twice.
+- If Pixelforge rejects it (for example a blocked prompt), the generation fails at no cost and shows why, down to the invalid field.
+- Available over the API (`POST /api/v1/generations`) and from the console (`php artisan generations:create {email} {prompt} --size= --quality= --reference-image=`). The web form arrives with #10.
+
 ### Cost estimate
 
 - Get the estimated price range, in dollars, for an image size and quality, over the API (`GET /api/v1/cost-estimate?size=…&quality=…`) or from the console (`php artisan cost:estimate {size} {quality}`). The prompt form will show it live once it ships (#8).
@@ -181,3 +188,14 @@ Each entry summarizes one request and what was done about it.
 - The estimate is available in three places sharing one action: `GET /cost-estimate` for the upcoming prompt form, `GET /api/v1/cost-estimate`, and `php artisan cost:estimate {size} {quality}`. Documented in `docs/openapi.yaml`.
 - New `ImageSize` and `ImageQuality` enums with the provider's values. `Generation` now casts `size` and `quality` to them.
 - Moved the build-log entry 012 after 011, so the log reads in order.
+
+### 014 · 2026-11-19 · Create a generation (#8, part B)
+
+**Request:** After #27 was merged, continue with #8 part B: creating a generation. Decided: per-field provider errors are kept in a new `error_fields` JSON column, and #8 was reopened for this part.
+
+**Done:**
+- `CreateGeneration` action stores the generation as `pending` first, with the baseline estimate from #6, then queues `SubmitGeneration`. Shared by `POST /generations` (web, the form comes with #10), `POST /api/v1/generations` (202) and `php artisan generations:create`.
+- Validation mirrors Pixelforge: prompt ≤ 4,000 characters, size and quality from the enums (with the provider defaults), ≤ 4 http/https reference images. One set of rules is shared by the Form Request and the console.
+- `SubmitGeneration` posts with `Idempotency-Key` = the local UUID and `metadata.local_id` = the same UUID, then stores `provider_id`, `rates` and the status. A replay never duplicates anything, and a replayed final status is not applied (the cost must come with it, in #13/#14).
+- Permanent provider errors (validation, content policy, …) fail the generation at $0 with the code, message and `error_fields`. Retryable ones (overloaded, rate limits, network, 5xx) are retried up to 3 times; if all fail, the generation fails at $0. Smarter pacing comes in #9.
+- `PixelforgeClient::createGeneration()`, and `docs/openapi.yaml` gained `POST /generations` and the `Generation` schema.

@@ -62,6 +62,29 @@ class PixelforgeClient
     }
 
     /**
+     * Create a generation with POST /v1/generations.
+     *
+     * Input: the documented body (prompt, size, quality, reference_images?, metadata?) and an
+     * Idempotency-Key: repeating the call with the same key and body returns the same generation
+     * (202, `Idempotent-Replayed: true`) instead of creating a new one.
+     * Output: the generation object, with at least a string `id`.
+     *
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    public function createGeneration(array $payload, string $idempotencyKey): array
+    {
+        $request = $this->authenticatedRequest()->withHeaders(['Idempotency-Key' => $idempotencyKey]);
+        $generation = $this->send($request, 'POST', '/v1/generations', $payload);
+
+        if (! is_string($generation['id'] ?? null)) {
+            throw new PixelforgeException('Pixelforge returned a generation without an id.', 'unexpected_response');
+        }
+
+        return $generation;
+    }
+
+    /**
      * Base request: JSON in and out, with timeouts.
      */
     private function request(): PendingRequest

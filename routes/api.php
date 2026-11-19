@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\ApiTokenController;
 use App\Http\Controllers\Api\V1\CostEstimateController;
+use App\Http\Controllers\Api\V1\GenerationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,5 +19,6 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             ->whereNumber('token')
             ->name('tokens.destroy');
         Route::get('cost-estimate', CostEstimateController::class)->name('cost-estimate');
+        Route::post('generations', [GenerationController::class, 'store'])->name('generations.store');
     });
 });

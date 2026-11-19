@@ -41,6 +41,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $image_url_expires_at
  * @property string|null $error_code
  * @property string|null $error_message
+ * @property array<string, list<string>>|null $error_fields
  * @property Carbon|null $submitted_at
  * @property Carbon|null $started_at
  * @property Carbon|null $completed_at
@@ -65,6 +66,7 @@ use Illuminate\Support\Carbon;
     'image_url_expires_at',
     'error_code',
     'error_message',
+    'error_fields',
     'submitted_at',
     'started_at',
     'completed_at',
@@ -97,6 +99,7 @@ class Generation extends Model
             'reference_images' => 'array',
             'usage' => 'array',
             'rates' => 'array',
+            'error_fields' => 'array',
             'estimate_min_cents' => AsCents::class,
             'estimate_max_cents' => AsCents::class,
             'provider_cost_nusd' => AsNanoUsd::class,
