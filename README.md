@@ -37,6 +37,13 @@ Run tests with `php artisan test`.
 - Reset a forgotten password by email link.
 - Edit your profile, change your password, choose a light/dark/system appearance, and delete your account (confirming with your password).
 
+### API tokens
+
+- Create personal API tokens under **Settings → API tokens** to call the PixelForge API (`/api/v1`) from scripts. Each token is shown once, when it is created.
+- See each token's name, creation date and last use, and revoke any token to stop it working at once. Managing tokens asks you to confirm your password first.
+- Changing or resetting your password revokes all of your tokens.
+- The same works over the API (`POST /api/v1/tokens` with your email and password, then `GET` and `DELETE`) and from the console (`php artisan api-tokens:create|list|revoke`). The API is documented in [`docs/openapi.yaml`](docs/openapi.yaml).
+
 ## Build log
 
 Each entry summarizes one request and what was done about it.
@@ -117,6 +124,18 @@ Each entry summarizes one request and what was done about it.
 - Upgraded the ngrok agent from 3.11 to 3.39 via Homebrew; the account now refuses agents older than 3.29.
 - Opened a tunnel with `ngrok http 8000`, forwarding a public HTTPS URL to `php artisan serve`. Requests can be inspected at `http://localhost:4040`.
 - No webhook route exists yet; the receiving endpoint comes with #12.
+
+### 012 · 2026-11-18 · API tokens (#8, part A)
+
+**Request:** Continue with sub-issue #8. Agreed order: API auth first (part A), then #6, then the create-generation flow (#8 part B). Sanctum approved.
+
+**Done:**
+- Installed Laravel Sanctum. The API is token-only: no cookie/SPA sessions on `/api`.
+- Personal API tokens can be created, listed and revoked in three places that share the same actions: the new **Settings → API tokens** page, `/api/v1/tokens`, and `php artisan api-tokens:create|list|revoke`.
+- `POST /api/v1/tokens` exchanges email and password for a token. It is rate-limited like web login (5 attempts per minute per email + IP). A wrong password and an unknown email return the same error and take the same time to answer.
+- Users can only see and revoke their own tokens. Anyone else's token returns 404.
+- The tokens page requires a recent password confirmation, and changing or resetting the password revokes all tokens. These came from an automated security review.
+- Started [`docs/openapi.yaml`](docs/openapi.yaml), including the standard response shapes: `{data}`, `{message, errors}` and `{message}`.
 
 ### 009 · 2026-11-18 · Generations model and state machine (#7)
 
