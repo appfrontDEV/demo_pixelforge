@@ -3,6 +3,8 @@
 namespace Tests\Feature\Models;
 
 use App\Enums\GenerationStatus;
+use App\Enums\ImageQuality;
+use App\Enums\ImageSize;
 use App\Models\Generation;
 use App\Models\User;
 use App\Money\NanoUsd;
@@ -137,6 +139,8 @@ class GenerationTest extends TestCase
         ]);
 
         $this->assertSame(GenerationStatus::Pending, $generation->fresh()?->status);
+        $this->assertSame(ImageSize::Square, $generation->fresh()?->size);
+        $this->assertSame(ImageQuality::Medium, $generation->fresh()?->quality);
         $this->assertTrue($generation->user?->is($user));
         $this->assertMatchesRegularExpression('/^[0-9a-f-]{36}$/', $generation->id);
     }

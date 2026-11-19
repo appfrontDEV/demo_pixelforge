@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Casts\AsCents;
 use App\Casts\AsNanoUsd;
 use App\Enums\GenerationStatus;
+use App\Enums\ImageQuality;
+use App\Enums\ImageSize;
 use App\Money\Cents;
 use App\Money\NanoUsd;
 use Database\Factories\GenerationFactory;
@@ -25,8 +27,8 @@ use Illuminate\Support\Carbon;
  * @property int|null $user_id
  * @property string|null $provider_id
  * @property string $prompt
- * @property string $size
- * @property string $quality
+ * @property ImageSize $size
+ * @property ImageQuality $quality
  * @property list<string>|null $reference_images
  * @property GenerationStatus $status
  * @property Cents|null $estimate_min_cents
@@ -90,6 +92,8 @@ class Generation extends Model
     {
         return [
             'status' => GenerationStatus::class,
+            'size' => ImageSize::class,
+            'quality' => ImageQuality::class,
             'reference_images' => 'array',
             'usage' => 'array',
             'rates' => 'array',
