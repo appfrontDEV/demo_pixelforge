@@ -23,6 +23,8 @@ security:
 tags:
   - name: API tokens
     description: Personal tokens for the API. Console parity via `api-tokens:create|list|revoke`.
+  - name: Cost estimate
+    description: Estimated customer price range per size × quality. Web parity via `GET /cost-estimate`, console via `cost:estimate {size} {quality}`.
 paths:
   /tokens:
     post:
@@ -102,6 +104,36 @@ paths:
           description: Revoked. The token stops working immediately.
         '401': { $ref: '#/components/responses/Unauthenticated' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /cost-estimate:
+    get:
+      tags: [Cost estimate]
+      operationId: estimateCost
+      summary: Estimated customer price range for a size and quality
+      description: |
+        The range is empirical: the lowest and highest customer price (rounded up to whole cents)
+        of the generations that succeeded with this size and quality. With no samples yet
+        (`sample_count: 0`) it is the wide seed range, 0 – 100000 cents ($0 – $1,000).
+      parameters:
+        - name: size
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/ImageSize' }
+        - name: quality
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/ImageQuality' }
+      responses:
+        '200':
+          description: The estimate.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: '#/components/schemas/CostEstimate' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 components:
   securitySchemes:
     bearerToken:
@@ -117,6 +149,23 @@ components:
         name: { type: string, example: CI script }
         last_used_at: { type: [string, 'null'], format: date-time, example: null }
         created_at: { type: [string, 'null'], format: date-time, example: '2026-11-18T17:00:00+00:00' }
+    ImageSize:
+      type: string
+      enum: ['1024x1024', '1536x1024', '1024x1536']
+      example: '1024x1024'
+    ImageQuality:
+      type: string
+      enum: [low, medium, high]
+      example: high
+    CostEstimate:
+      type: object
+      required: [size, quality, min_cents, max_cents, sample_count]
+      properties:
+        size: { $ref: '#/components/schemas/ImageSize' }
+        quality: { $ref: '#/components/schemas/ImageQuality' }
+        min_cents: { type: integer, minimum: 0, description: Lowest estimated price in whole US cents., example: 12 }
+        max_cents: { type: integer, minimum: 0, description: Highest estimated price in whole US cents., example: 47 }
+        sample_count: { type: integer, minimum: 0, description: Succeeded generations behind the range; 0 means the seed range., example: 4 }
     Error:
       type: object
       required: [message]

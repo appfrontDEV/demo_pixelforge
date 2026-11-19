@@ -44,6 +44,11 @@ Run tests with `php artisan test`.
 - Changing or resetting your password revokes all of your tokens.
 - The same works over the API (`POST /api/v1/tokens` with your email and password, then `GET` and `DELETE`) and from the console (`php artisan api-tokens:create|list|revoke`). The API is documented in [`docs/openapi.yaml`](docs/openapi.yaml).
 
+### Cost estimate
+
+- Get the estimated price range, in dollars, for an image size and quality, over the API (`GET /api/v1/cost-estimate?size=…&quality=…`) or from the console (`php artisan cost:estimate {size} {quality}`). The prompt form will show it live once it ships (#8).
+- The range is learned from real generations. It starts wide ($0 – $1,000) and narrows to the lowest and highest price actually paid for that size and quality.
+
 ## Build log
 
 Each entry summarizes one request and what was done about it.
@@ -125,18 +130,6 @@ Each entry summarizes one request and what was done about it.
 - Opened a tunnel with `ngrok http 8000`, forwarding a public HTTPS URL to `php artisan serve`. Requests can be inspected at `http://localhost:4040`.
 - No webhook route exists yet; the receiving endpoint comes with #12.
 
-### 012 · 2026-11-18 · API tokens (#8, part A)
-
-**Request:** Continue with sub-issue #8. Agreed order: API auth first (part A), then #6, then the create-generation flow (#8 part B). Sanctum approved.
-
-**Done:**
-- Installed Laravel Sanctum. The API is token-only: no cookie/SPA sessions on `/api`.
-- Personal API tokens can be created, listed and revoked in three places that share the same actions: the new **Settings → API tokens** page, `/api/v1/tokens`, and `php artisan api-tokens:create|list|revoke`.
-- `POST /api/v1/tokens` exchanges email and password for a token. It is rate-limited like web login (5 attempts per minute per email + IP). A wrong password and an unknown email return the same error and take the same time to answer.
-- Users can only see and revoke their own tokens. Anyone else's token returns 404.
-- The tokens page requires a recent password confirmation, and changing or resetting the password revokes all tokens. These came from an automated security review.
-- Started [`docs/openapi.yaml`](docs/openapi.yaml), including the standard response shapes: `{data}`, `{message, errors}` and `{message}`.
-
 ### 009 · 2026-11-18 · Generations model and state machine (#7)
 
 **Request:** Start sub-issue #7: the generations data model and its forward-only status.
@@ -165,3 +158,26 @@ Each entry summarizes one request and what was done about it.
 **Done:**
 - Deleted the `domain_specifications` (Microlearning Course Platform), `storage_specifications` (courses/lessons schema) and `course-plan` (course JSON generator) sections. They described another project and don't apply to PixelForge.
 - The Laravel Boost and BeeAPro development guidelines are unchanged.
+
+### 012 · 2026-11-18 · API tokens (#8, part A)
+
+**Request:** Continue with sub-issue #8. Agreed order: API auth first (part A), then #6, then the create-generation flow (#8 part B). Sanctum approved.
+
+**Done:**
+- Installed Laravel Sanctum. The API is token-only: no cookie/SPA sessions on `/api`.
+- Personal API tokens can be created, listed and revoked in three places that share the same actions: the new **Settings → API tokens** page, `/api/v1/tokens`, and `php artisan api-tokens:create|list|revoke`.
+- `POST /api/v1/tokens` exchanges email and password for a token. It is rate-limited like web login (5 attempts per minute per email + IP). A wrong password and an unknown email return the same error and take the same time to answer.
+- Users can only see and revoke their own tokens. Anyone else's token returns 404.
+- The tokens page requires a recent password confirmation, and changing or resetting the password revokes all tokens. These came from an automated security review.
+- Started [`docs/openapi.yaml`](docs/openapi.yaml), including the standard response shapes: `{data}`, `{message, errors}` and `{message}`.
+
+### 013 · 2026-11-19 · Cost estimate from recorded baselines (#6)
+
+**Request:** After merging #25 and #26 (in that order, since only the build log conflicted), start sub-issue #6. Also: no "review" label or PR assignees, as there is a single developer.
+
+**Done:**
+- `cost_baselines` table, `CostBaseline` model, factory and seeder: one row per size × quality (9 rows), seeded at $0 – $1,000 with no samples.
+- `RecordCostBaseline` action: adds a succeeded generation's exact price, rounded up to cents, to its row. The first sample replaces the seed range; later ones only widen min and max. Failed or unfinished generations are skipped. It runs in a locked transaction and will be called by #13 when a generation succeeds.
+- The estimate is available in three places sharing one action: `GET /cost-estimate` for the upcoming prompt form, `GET /api/v1/cost-estimate`, and `php artisan cost:estimate {size} {quality}`. Documented in `docs/openapi.yaml`.
+- New `ImageSize` and `ImageQuality` enums with the provider's values. `Generation` now casts `size` and `quality` to them.
+- Moved the build-log entry 012 after 011, so the log reads in order.

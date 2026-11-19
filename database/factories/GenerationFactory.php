@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Enums\GenerationStatus;
+use App\Enums\ImageQuality;
+use App\Enums\ImageSize;
 use App\Models\Generation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -23,8 +25,8 @@ class GenerationFactory extends Factory
         return [
             'user_id' => User::factory(),
             'prompt' => fake()->sentence(),
-            'size' => fake()->randomElement(['1024x1024', '1536x1024', '1024x1536']),
-            'quality' => fake()->randomElement(['low', 'medium', 'high']),
+            'size' => fake()->randomElement(ImageSize::cases()),
+            'quality' => fake()->randomElement(ImageQuality::cases()),
             'reference_images' => [],
             'status' => GenerationStatus::Pending,
             'estimate_min_cents' => 0,
